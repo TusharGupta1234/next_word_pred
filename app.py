@@ -254,8 +254,25 @@ def load_artifacts():
     # Model (lazy import so app still renders without TF)
     model = None
     try:
+        import tensorflow as tf
         from tensorflow.keras.models import load_model
-        model = load_model("model.h5")
+
+        # Patch InputLayer to accept legacy 'batch_shape' kwarg (Keras 2 → Keras 3 compat)
+        try:
+            orig_input_layer_init = tf.keras.layers.InputLayer.__init__
+
+            def _patched_input_layer_init(self, *args, **kwargs):
+                batch_shape = kwargs.pop("batch_shape", None)
+                if batch_shape is not None and "input_shape" not in kwargs:
+                    kwargs["input_shape"] = batch_shape[1:]
+                orig_input_layer_init(self, *args, **kwargs)
+
+            tf.keras.layers.InputLayer.__init__ = _patched_input_layer_init
+        except Exception:
+            pass
+
+        model = load_model("model.h5", compile=False)
+
     except ImportError:
         errors.append("TensorFlow/Keras not installed — run: pip install tensorflow")
     except Exception as e:
