@@ -209,21 +209,12 @@ def load_artifacts():
     errors = []
 
     # Tokenizer
-    # Pre-import keras so pickle can resolve keras classes inside the file
-    try:
-        import tensorflow as tf
-        import tensorflow.keras as keras  # noqa: ensures keras is in sys.modules
-    except ImportError:
-        pass
     try:
         with open("tokenizer.pickle", "rb") as f:
             tokenizer = pickle.load(f)
     except FileNotFoundError:
         tokenizer = None
         errors.append("tokenizer.pickle not found")
-    except Exception as e:
-        tokenizer = None
-        errors.append(f"Failed to load tokenizer: {e}")
 
     # Max len
     try:
@@ -236,28 +227,12 @@ def load_artifacts():
     # Model (lazy import so app still renders without TF)
     model = None
     try:
-        import tensorflow as tf
         from tensorflow.keras.models import load_model
-        from tensorflow.keras import layers
-
-        # Monkey-patch Embedding.__init__ BEFORE loading so the deserializer
-        # never chokes on the `quantization_config` key added by newer Keras.
-        _orig_emb_init = layers.Embedding.__init__
-
-        def _patched_emb_init(self, *args, **kwargs):
-            kwargs.pop("quantization_config", None)
-            _orig_emb_init(self, *args, **kwargs)
-
-        layers.Embedding.__init__ = _patched_emb_init
-
-        model = load_model("lstm_model.h5", compile=False)
-
-        layers.Embedding.__init__ = _orig_emb_init  # restore
-
+        model = load_model("model.h5")
     except ImportError:
         errors.append("TensorFlow/Keras not installed — run: pip install tensorflow")
     except Exception as e:
-        errors.append(f"Could not load lstm_model.h5: {e}")
+        errors.append(f"Could not load model.h5: {e}")
 
     return tokenizer, max_len, model, errors
 
