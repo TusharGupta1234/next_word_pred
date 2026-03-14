@@ -209,12 +209,21 @@ def load_artifacts():
     errors = []
 
     # Tokenizer
+    # Pre-import keras so pickle can resolve keras classes inside the file
+    try:
+        import tensorflow as tf
+        import tensorflow.keras as keras  # noqa: ensures keras is in sys.modules
+    except ImportError:
+        pass
     try:
         with open("tokenizer.pickle", "rb") as f:
             tokenizer = pickle.load(f)
     except FileNotFoundError:
         tokenizer = None
         errors.append("tokenizer.pickle not found")
+    except Exception as e:
+        tokenizer = None
+        errors.append(f"Failed to load tokenizer: {e}")
 
     # Max len
     try:
