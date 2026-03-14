@@ -1,7 +1,31 @@
+import sys
+import types
 import streamlit as st
 import numpy as np
 import pickle
 import os
+
+# ── Keras legacy patch ────────────────────────────────────────────────────────
+# Fixes: ModuleNotFoundError: No module named 'keras.src.legacy'
+# This happens when tokenizer.pickle was saved with an older Keras build.
+try:
+    import keras
+    if not hasattr(keras, 'src') or not hasattr(getattr(keras, 'src', None), 'legacy'):
+        _keras_src = types.ModuleType('keras.src')
+        _keras_legacy = types.ModuleType('keras.src.legacy')
+        _keras_legacy_prep = types.ModuleType('keras.src.legacy.preprocessing')
+        _keras_legacy_prep_text = keras.preprocessing.text
+
+        _keras_src.legacy = _keras_legacy
+        _keras_legacy.preprocessing = _keras_legacy_prep
+        _keras_legacy_prep.text = _keras_legacy_prep_text
+
+        sys.modules.setdefault('keras.src', _keras_src)
+        sys.modules.setdefault('keras.src.legacy', _keras_legacy)
+        sys.modules.setdefault('keras.src.legacy.preprocessing', _keras_legacy_prep)
+        sys.modules.setdefault('keras.src.legacy.preprocessing.text', _keras_legacy_prep_text)
+except Exception:
+    pass  # TF not installed yet — load_artifacts() will surface the error
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -215,6 +239,9 @@ def load_artifacts():
     except FileNotFoundError:
         tokenizer = None
         errors.append("tokenizer.pickle not found")
+    except Exception as e:
+        tokenizer = None
+        errors.append(f"Could not load tokenizer.pickle: {e}")
 
     # Max len
     try:
@@ -291,7 +318,7 @@ if load_errors:
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown('<div class="section-label">Seed Text</div>', unsafe_allow_html=True)
 seed_text = st.text_area(
-    label="",
+    label="Seed Text",
     placeholder="Start typing your sentence here…",
     height=110,
     label_visibility="collapsed",
@@ -300,10 +327,10 @@ seed_text = st.text_area(
 col1, col2 = st.columns(2)
 with col1:
     st.markdown('<div class="section-label">Words to predict</div>', unsafe_allow_html=True)
-    n_words = st.slider("", min_value=1, max_value=20, value=3, label_visibility="collapsed")
+    n_words = st.slider("Words to predict", min_value=1, max_value=20, value=3, label_visibility="collapsed")
 with col2:
     st.markdown('<div class="section-label">Creativity (temperature)</div>', unsafe_allow_html=True)
-    temperature = st.slider("", min_value=0.1, max_value=2.0, value=1.0, step=0.1, label_visibility="collapsed")
+    temperature = st.slider("Temperature", min_value=0.1, max_value=2.0, value=1.0, step=0.1, label_visibility="collapsed")
 
 predict_btn = st.button("✦ Generate Prediction")
 st.markdown('</div>', unsafe_allow_html=True)
