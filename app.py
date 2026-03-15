@@ -271,6 +271,42 @@ def load_artifacts():
         except Exception:
             pass
 
+        # Patch DTypePolicy: model was saved with Keras 3 which stores DTypePolicy
+        # objects in layer configs. Older TF/Keras environments don't know this class,
+        # so we register a minimal shim as a custom object before deserializing.
+        try:
+            import keras as _keras
+
+            class _DTypePolicy:
+                """Minimal shim so Keras can deserialize layers that store a DTypePolicy."""
+                def __init__(self, name="float32", **kwargs):
+                    self.name = name
+
+                @classmethod
+                def from_config(cls, config):
+                    return cls(**config)
+
+                def get_config(self):
+                    return {"name": self.name}
+
+            # Register under every name Keras might look up
+            for _alias in ("DTypePolicy", "dtype_policy", "Policy"):
+                try:
+                    _keras.utils.get_custom_objects()[_alias] = _DTypePolicy
+                except Exception:
+                    pass
+
+            # Also patch keras.mixed_precision if it exists
+            try:
+                import keras.mixed_precision as _mp
+                if not hasattr(_mp, "Policy"):
+                    _mp.Policy = _DTypePolicy
+            except Exception:
+                pass
+
+        except Exception:
+            pass
+
         model = load_model("model.h5", compile=False)
 
     except ImportError:
